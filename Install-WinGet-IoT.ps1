@@ -250,6 +250,80 @@ function Get-SortedDependencyFiles {
     $Files | Sort-Object { & $rank $_ }, Name
 }
 
+function Get-AppxIdentityFromFile {
+    param([Parameter(Mandatory)][string]$Path)
+
+    $result = [pscustomobject]@{
+        Path         = $Path
+        Name         = $null
+        Version      = $null
+        Architecture = $null
+        Publisher    = $null
+        Key          = $Path
+    }
+    if (-not (Test-Path -LiteralPath $Path)) { return $result }
+
+    try {
+        Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+        $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $Path).ProviderPath)
+        try {
+            $entry = $zip.Entries | Where-Object { $_.FullName -eq 'AppxManifest.xml' } | Select-Object -First 1
+            if (-not $entry) { return $result }
+            $stream = $entry.Open()
+            try {
+                $reader = New-Object System.IO.StreamReader($stream)
+                [xml]$xml = $reader.ReadToEnd()
+            } finally {
+                $stream.Dispose()
+            }
+        } finally {
+            $zip.Dispose()
+        }
+
+        $id = $xml.GetElementsByTagName('Identity') | Select-Object -First 1
+        if (-not $id) { return $result }
+
+        $name = $id.GetAttribute('Name')
+        $arch = $id.GetAttribute('ProcessorArchitecture')
+        $publisher = $id.GetAttribute('Publisher')
+        $ver = $null
+        try { $ver = [version]$id.GetAttribute('Version') } catch { }
+
+        $result.Name = $name
+        $result.Version = $ver
+        $result.Architecture = $arch
+        $result.Publisher = $publisher
+        $result.Key = '{0}|{1}|{2}' -f $name, $arch, $publisher
+        return $result
+    } catch {
+        return $result
+    }
+}
+
+function Select-UniqueAppxPackages {
+    param([Parameter(Mandatory)][string[]]$Paths)
+
+    $best = @{}
+    foreach ($p in $Paths) {
+        if (-not $p -or -not (Test-Path -LiteralPath $p)) { continue }
+        $id = Get-AppxIdentityFromFile -Path $p
+        if (-not $best.ContainsKey($id.Key)) {
+            $best[$id.Key] = $id
+            continue
+        }
+        $prev = $best[$id.Key]
+        if ($id.Version -and ((-not $prev.Version) -or $id.Version -gt $prev.Version)) {
+            $best[$id.Key] = $id
+        }
+    }
+
+    $files = [System.IO.FileInfo[]]@(
+        $best.Values | ForEach-Object { Get-Item -LiteralPath $_.Path }
+    )
+    if ($files.Count -eq 0) { return @() }
+    @(Get-SortedDependencyFiles -Files $files)
+}
+
 function Test-AppxAlreadyPresent {
     param($ErrorRecord)
 
@@ -465,7 +539,7 @@ $archDir = Get-ChildItem -Path $depsRoot -Directory -Recurse -ErrorAction Silent
     Select-Object -First 1
 
 $searchRoot = if ($archDir) { $archDir.FullName } else { $depsRoot }
-$depFiles = @(Get-ChildItem -Path $searchRoot -Recurse -Include *.appx, *.msix, *.msixbundle -File -ErrorAction SilentlyContinue)
+$depFiles = @(Get-ChildItem -Path $searchRoot -Recurse -Include '*.appx', '*.msix', '*.msixbundle' -File -ErrorAction SilentlyContinue)
 
 if ($depFiles.Count -eq 0) {
     throw "No AppX packages for architecture '$arch' in DesktopAppInstaller_Dependencies.zip."
@@ -473,23 +547,27 @@ if ($depFiles.Count -eq 0) {
 
 $depFiles = @(Get-SortedDependencyFiles -Files $depFiles)
 
-Write-Ok ("{0} dependency packages found:" -f $depFiles.Count)
+Write-Ok ("{0} dependency packages in zip:" -f $depFiles.Count)
 $depFiles | ForEach-Object { Write-Host "      - $($_.Name)" }
 
-# Prepend extra VCLibs / UI.Xaml before zip deps if present
+# aka.ms VCLibs / extra UI.Xaml are often the same package family as a zip
+# entry. Passing both as -DependencyPath throws 0x80073CF9 ("specified
+# multiple times. Each package specified needs to be unique.").
 $extraDeps = @()
-if ($vclibsAka -and (Test-Path $vclibsAka)) { $extraDeps += $vclibsAka }
-if ($uiXamlPath -and (Test-Path $uiXamlPath)) { $extraDeps += $uiXamlPath }
-
-Write-Step 'Install dependencies (order: VCLibs -> UI.Xaml -> WinAppRuntime)'
-foreach ($extra in $extraDeps) {
-    Install-AppxSafe -Path $extra
-}
-foreach ($dep in $depFiles) {
-    Install-AppxSafe -Path $dep.FullName
-}
+if ($vclibsAka -and (Test-Path -LiteralPath $vclibsAka)) { $extraDeps += $vclibsAka }
+if ($uiXamlPath -and (Test-Path -LiteralPath $uiXamlPath)) { $extraDeps += $uiXamlPath }
 
 $allDepPaths = @($extraDeps) + @($depFiles | ForEach-Object { $_.FullName })
+$uniqueDepFiles = @(Select-UniqueAppxPackages -Paths $allDepPaths)
+$allDepPaths = @($uniqueDepFiles | ForEach-Object { $_.FullName })
+
+Write-Ok ("{0} unique packages after identity dedup:" -f $allDepPaths.Count)
+$uniqueDepFiles | ForEach-Object { Write-Host "      - $($_.Name)" }
+
+Write-Step 'Install dependencies (order: VCLibs -> UI.Xaml -> WinAppRuntime)'
+foreach ($dep in $uniqueDepFiles) {
+    Install-AppxSafe -Path $dep.FullName
+}
 
 # ---------------------------------------------------------------------------
 # DesktopAppInstaller + License
