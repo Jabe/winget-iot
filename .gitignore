@@ -1,0 +1,15 @@
+# Local bootstrap cache (script default: %TEMP%\winget-iot-bootstrap)
+*.msixbundle
+*.msix
+*.appx
+*.nupkg
+DesktopAppInstaller_Dependencies.zip
+License1.xml
+source.msix
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
