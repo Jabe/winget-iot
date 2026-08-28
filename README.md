@@ -29,14 +29,16 @@ The `msstore` source is useless on IoT LTSC. The `winget` community source works
 
 ## Install
 
-Admin PowerShell, from a clone:
+**Administrator Windows PowerShell 5.1**, copy-paste:
 
 ```powershell
-Set-ExecutionPolicy -Scope Process Bypass -Force
-.\Install-WinGet-IoT.ps1
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+$f = "$env:TEMP\Install-WinGet-IoT.ps1"
+Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/Jabe/winget-iot/main/Install-WinGet-IoT.ps1' -OutFile $f -UseBasicParsing
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File $f
 ```
 
-Or double-click `Install-WinGet-IoT.cmd` (UAC).
+`-UseBasicParsing` is required on Windows PowerShell 5.1 (no IE engine). The download is written to a file and started with `-File` so `#Requires` and `-OfflineDir` / other parameters work. Append parameters after `$f`, e.g. `-File $f -SkipUiXaml`.
 
 After success, open a **new** PowerShell:
 
@@ -46,13 +48,14 @@ winget search Git.Git
 winget install --id Git.Git -e --accept-source-agreements --accept-package-agreements
 ```
 
-### One-liner (after this repo is public)
+### From a clone
 
 ```powershell
-# Review the script first. Then:
-irm https://raw.githubusercontent.com/Jabe/winget-iot/main/Install-WinGet-IoT.ps1 -OutFile "$env:TEMP\Install-WinGet-IoT.ps1"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\Install-WinGet-IoT.ps1"
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.\Install-WinGet-IoT.ps1
 ```
+
+Or double-click `Install-WinGet-IoT.cmd` (UAC).
 
 ## Offline / air-gapped
 
