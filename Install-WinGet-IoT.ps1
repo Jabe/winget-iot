@@ -1,22 +1,22 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Installiert winget (Windows Package Manager) auf Windows 11 IoT Enterprise
-    ohne Microsoft Store, inklusive aller Dependencies und der License.
+    Install winget (Windows Package Manager) on Windows 11 IoT Enterprise
+    without the Microsoft Store, including dependencies and the license.
 
 .DESCRIPTION
-    Zielplattform: Windows 11 IoT Enterprise / LTSC (kein Store).
-    Holt die jeweils neueste stabile GitHub-Release von microsoft/winget-cli,
-    installiert die passenden Architecture-Dependencies (VCLibs, UWPDesktop,
-    Windows App Runtime) plus Microsoft.UI.Xaml.2.8 (laut Microsoft-IoT-Doku)
-    und provisioniert DesktopAppInstaller systemweit mit License1.xml.
+    Target: Windows 11 IoT Enterprise / LTSC (no Store).
+    Downloads the latest stable GitHub release of microsoft/winget-cli,
+    installs the matching architecture dependencies (VCLibs, UWPDesktop,
+    Windows App Runtime) plus Microsoft.UI.Xaml.2.8 (per Microsoft IoT docs)
+    and provisions DesktopAppInstaller for all users with License1.xml.
 
-    Ohne VCLibs / WinAppRuntime / UI.Xaml schlaegt die Installation oft still
-    fehl -- winget.exe erscheint dann nicht unter WindowsApps.
+    Without VCLibs / WinAppRuntime / UI.Xaml the install often fails silently
+    -- winget.exe never appears under WindowsApps.
 
 .PARAMETER OfflineDir
-    Ordner mit bereits heruntergeladenen Dateien (air-gapped IoT).
-    Erwartet:
+    Folder of already-downloaded files (air-gapped IoT).
+    Expected:
       - Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
       - *License1.xml
       - DesktopAppInstaller_Dependencies.zip
@@ -24,16 +24,16 @@
       optional: source.msix
 
 .PARAMETER SkipUiXaml
-    UI.Xaml 2.8 nicht extra holen (neuere winget-Releases ziehen WinAppRuntime).
+    Do not download extra UI.Xaml 2.8 (newer winget releases pull WinAppRuntime).
 
 .PARAMETER SkipSource
-    winget-Source-Paket (cdn.winget.microsoft.com/cache/source.msix) nicht installieren.
+    Do not install the winget source package (cdn.winget.microsoft.com/cache/source.msix).
 
 .PARAMETER NoProvision
-    Nur fuer den aktuellen Benutzer installieren, nicht systemweit provisionieren.
+    Install for the current user only, do not provision system-wide.
 
 .EXAMPLE
-    # Als Administrator:
+    # As Administrator:
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-WinGet-IoT.ps1
 
 .EXAMPLE
@@ -69,13 +69,13 @@ function Assert-Administrator {
     $id = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($id)
     if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        throw 'Dieses Script muss als Administrator laufen (PowerShell "Als Administrator ausfuehren").'
+        throw 'This script must run as Administrator (PowerShell "Run as administrator").'
     }
 }
 
 function Get-NativeArch {
-    # PROCESSOR_ARCHITECTURE ist auf ARM64-Windows "ARM64", auch wenn die
-    # PowerShell x64-emuliert laeuft. Fuer AppX zaehlt die OS-Architektur.
+    # PROCESSOR_ARCHITECTURE is "ARM64" on ARM64 Windows even when
+    # PowerShell is running x64-emulated. AppX needs the OS architecture.
     $osArch = $env:PROCESSOR_ARCHITECTURE
     try {
         $cs = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
@@ -88,12 +88,12 @@ function Get-NativeArch {
         'X86'   { 'x86' }
         'ARM64' { 'arm64' }
         'ARM'   { 'arm' }
-        default { throw "Nicht unterstuetzte Architektur: $osArch" }
+        default { throw "Unsupported architecture: $osArch" }
     }
 }
 
 function Enable-AppxSideloading {
-    Write-Step 'Sideloading fuer AppX aktivieren (ohne Store noetig)'
+    Write-Step 'Enable AppX sideloading (no Store required)'
 
     $unlock = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock'
     if (-not (Test-Path $unlock)) {
@@ -133,13 +133,13 @@ function Invoke-FileDownload {
                 Write-Ok ("{0}  ({1} MB)" -f (Split-Path $OutFile -Leaf), $sizeMb)
                 return
             }
-            throw 'Datei leer oder nicht geschrieben.'
+            throw 'File empty or not written.'
         } catch {
-            Write-Warning "    Versuch $i fehlgeschlagen: $($_.Exception.Message)"
+            Write-Warning "    Attempt $i failed: $($_.Exception.Message)"
             Start-Sleep -Seconds (3 * $i)
         }
     }
-    throw "Download fehlgeschlagen nach $Retries Versuchen: $Uri"
+    throw "Download failed after $Retries attempts: $Uri"
 }
 
 function Test-FileHashIfPresent {
@@ -152,13 +152,13 @@ function Test-FileHashIfPresent {
     if ($expected -notmatch '^[A-Fa-f0-9]{64}$') { return }
     $actual = (Get-FileHash -Path $File -Algorithm SHA256).Hash
     if ($actual -ne $expected) {
-        throw "SHA256 mismatch fuer $(Split-Path $File -Leaf). Erwartet $expected, erhalten $actual"
+        throw "SHA256 mismatch for $(Split-Path $File -Leaf). Expected $expected, got $actual"
     }
     Write-Ok "SHA256 OK  $(Split-Path $File -Leaf)"
 }
 
 function Get-LatestReleaseAssets {
-    Write-Step 'Neueste stabile winget-Release von GitHub ermitteln'
+    Write-Step 'Resolve latest stable winget release from GitHub'
 
     $api = 'https://api.github.com/repos/microsoft/winget-cli/releases/latest'
     $headers = @{
@@ -179,7 +179,7 @@ function Get-LatestReleaseAssets {
             DepsHashUrl   = ($release.assets | Where-Object { $_.name -eq 'DesktopAppInstaller_Dependencies.txt' } | Select-Object -First 1).browser_download_url
         }
     } catch {
-        Write-Warning "GitHub API nicht erreichbar ($($_.Exception.Message)) -- Fallback auf latest/download Permalinks."
+        Write-Warning "GitHub API unreachable ($($_.Exception.Message)) -- falling back to latest/download permalinks."
         $base = 'https://github.com/microsoft/winget-cli/releases/latest/download'
         return [pscustomobject]@{
             Tag        = 'latest'
@@ -210,7 +210,7 @@ function Get-UiXamlPackage {
             Invoke-FileDownload -Uri $uri -OutFile $outFile
             return $outFile
         } catch {
-            Write-Warning "    UI.Xaml Direct-Download fehlgeschlagen, versuche NuGet nupkg."
+            Write-Warning "    UI.Xaml direct download failed, trying NuGet nupkg."
         }
     }
 
@@ -227,10 +227,10 @@ function Get-UiXamlPackage {
         Where-Object { $_.FullName -match [regex]::Escape("\$Arch\") } |
         Select-Object -First 1
     if (-not $appx) {
-        throw "Microsoft.UI.Xaml.2.8.appx fuer $Arch nicht im nupkg gefunden."
+        throw "Microsoft.UI.Xaml.2.8.appx for $Arch not found in nupkg."
     }
     Copy-Item $appx.FullName $outFile -Force
-    Write-Ok "UI.Xaml 2.8 aus NuGet extrahiert ($Arch)"
+    Write-Ok "UI.Xaml 2.8 extracted from NuGet ($Arch)"
     return $outFile
 }
 
@@ -268,11 +268,11 @@ function Install-AppxSafe {
     }
     try {
         Add-AppxPackage @params
-        Write-Ok "installiert: $name"
+        Write-Ok "installed: $name"
     } catch {
         $msg = $_.Exception.Message
         if ($msg -match '0x80073D06|already installed|bereits installiert|0x80073CFB') {
-            Write-Host "    bereits vorhanden: $name" -ForegroundColor Yellow
+            Write-Host "    already present: $name" -ForegroundColor Yellow
         } else {
             throw
         }
@@ -298,11 +298,11 @@ function Provision-AppxSafe {
     }
     try {
         Add-AppxProvisionedPackage @params | Out-Null
-        Write-Ok 'systemweit provisioniert (alle Benutzer)'
+        Write-Ok 'provisioned system-wide (all users)'
     } catch {
         $msg = $_.Exception.Message
         if ($msg -match '0x80073CFB|already|bereits') {
-            Write-Host '    Package war bereits provisioniert.' -ForegroundColor Yellow
+            Write-Host '    Package was already provisioned.' -ForegroundColor Yellow
         } else {
             throw
         }
@@ -332,7 +332,7 @@ try {
 }
 
 $arch = Get-NativeArch
-Write-Host "Windows 11 IoT  |  Architektur: $arch  |  $([Environment]::OSVersion.VersionString)" -ForegroundColor White
+Write-Host "Windows 11 IoT  |  Architecture: $arch  |  $([Environment]::OSVersion.VersionString)" -ForegroundColor White
 
 Enable-AppxSideloading
 
@@ -348,8 +348,8 @@ $sourcePath  = $null
 $vclibsAka   = $null
 
 if ($OfflineDir) {
-    Write-Step "Offline-Modus: $OfflineDir"
-    if (-not (Test-Path $OfflineDir)) { throw "OfflineDir nicht gefunden: $OfflineDir" }
+    Write-Step "Offline mode: $OfflineDir"
+    if (-not (Test-Path $OfflineDir)) { throw "OfflineDir not found: $OfflineDir" }
 
     $bundlePath  = Get-ChildItem -Path $OfflineDir -Filter 'Microsoft.DesktopAppInstaller_*.msixbundle' | Select-Object -First 1 -ExpandProperty FullName
     $licensePath = Get-ChildItem -Path $OfflineDir -Filter '*License1.xml' | Select-Object -First 1 -ExpandProperty FullName
@@ -360,13 +360,13 @@ if ($OfflineDir) {
     }
     $sourcePath  = Get-ChildItem -Path $OfflineDir -Filter 'source.msix' -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
 
-    if (-not $bundlePath)  { throw 'OfflineDir: Microsoft.DesktopAppInstaller_*.msixbundle fehlt.' }
-    if (-not $licensePath) { throw 'OfflineDir: *License1.xml fehlt.' }
-    if (-not $depsZip)     { throw 'OfflineDir: DesktopAppInstaller_Dependencies.zip fehlt.' }
+    if (-not $bundlePath)  { throw 'OfflineDir: Microsoft.DesktopAppInstaller_*.msixbundle is missing.' }
+    if (-not $licensePath) { throw 'OfflineDir: *License1.xml is missing.' }
+    if (-not $depsZip)     { throw 'OfflineDir: DesktopAppInstaller_Dependencies.zip is missing.' }
 } else {
     $rel = Get-LatestReleaseAssets
 
-    Write-Step 'Pakete herunterladen'
+    Write-Step 'Download packages'
     $bundlePath  = Join-Path $WorkDir 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
     $licensePath = Join-Path $WorkDir 'License1.xml'
     $depsZip     = Join-Path $WorkDir 'DesktopAppInstaller_Dependencies.zip'
@@ -386,7 +386,7 @@ if ($OfflineDir) {
         Test-FileHashIfPresent -File $depsZip -HashFile $depsHash
     }
 
-    # VCLibs Desktop-Framework extra (aka.ms) -- laut Microsoft-IoT-Doku Pflicht.
+    # Extra VCLibs Desktop framework (aka.ms) -- required by Microsoft IoT docs.
     $vclibsUri = switch ($arch) {
         'x64'   { 'https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx' }
         'arm64' { 'https://aka.ms/Microsoft.VCLibs.arm64.14.00.Desktop.appx' }
@@ -399,38 +399,38 @@ if ($OfflineDir) {
         try {
             Invoke-FileDownload -Uri $vclibsUri -OutFile $vclibsAka
         } catch {
-            Write-Warning "aka.ms VCLibs nicht geladen -- Dependencies.zip muss ausreichen."
+            Write-Warning "aka.ms VCLibs not downloaded -- Dependencies.zip must be enough."
             $vclibsAka = $null
         }
     }
 
     if (-not $SkipUiXaml) {
-        Write-Step 'Microsoft.UI.Xaml.2.8 laden (Microsoft IoT-Dokumentation)'
+        Write-Step 'Download Microsoft.UI.Xaml.2.8 (Microsoft IoT documentation)'
         try {
             $uiXamlPath = Get-UiXamlPackage -Arch $arch -DestDir $WorkDir
         } catch {
-            Write-Warning "UI.Xaml 2.8 konnte nicht geladen werden: $($_.Exception.Message)"
-            Write-Warning "Neuere winget-Releases brauchen stattdessen Windows App Runtime 1.8 aus der Dependencies.zip."
+            Write-Warning "Could not download UI.Xaml 2.8: $($_.Exception.Message)"
+            Write-Warning "Newer winget releases need Windows App Runtime 1.8 from Dependencies.zip instead."
         }
     }
 
     if (-not $SkipSource) {
-        Write-Step 'winget Source-Paket laden'
+        Write-Step 'Download winget source package'
         $sourcePath = Join-Path $WorkDir 'source.msix'
         try {
             Invoke-FileDownload -Uri 'https://cdn.winget.microsoft.com/cache/source.msix' -OutFile $sourcePath
         } catch {
-            Write-Warning "source.msix nicht geladen. 'winget source reset --force' nach dem Reboot versuchen."
+            Write-Warning "source.msix not downloaded. Try 'winget source reset --force' after reboot."
             $sourcePath = $null
         }
     }
 }
 
 # ---------------------------------------------------------------------------
-# Dependencies aus Zip
+# Dependencies from zip
 # ---------------------------------------------------------------------------
 
-Write-Step "Dependencies.zip entpacken ($arch)"
+Write-Step "Extract Dependencies.zip ($arch)"
 $depsRoot = Join-Path $WorkDir 'deps'
 if (Test-Path $depsRoot) { Remove-Item $depsRoot -Recurse -Force }
 Expand-Archive -Path $depsZip -DestinationPath $depsRoot -Force
@@ -443,20 +443,20 @@ $searchRoot = if ($archDir) { $archDir.FullName } else { $depsRoot }
 $depFiles = @(Get-ChildItem -Path $searchRoot -Recurse -Include *.appx, *.msix, *.msixbundle -File -ErrorAction SilentlyContinue)
 
 if ($depFiles.Count -eq 0) {
-    throw "Keine AppX-Pakete fuer Architektur '$arch' in DesktopAppInstaller_Dependencies.zip gefunden."
+    throw "No AppX packages for architecture '$arch' in DesktopAppInstaller_Dependencies.zip."
 }
 
 $depFiles = @(Get-SortedDependencyFiles -Files $depFiles)
 
-Write-Ok ("{0} Dependency-Pakete gefunden:" -f $depFiles.Count)
+Write-Ok ("{0} dependency packages found:" -f $depFiles.Count)
 $depFiles | ForEach-Object { Write-Host "      - $($_.Name)" }
 
-# Extra VCLibs / UI.Xaml vor die Zip-Deps setzen, falls vorhanden
+# Prepend extra VCLibs / UI.Xaml before zip deps if present
 $extraDeps = @()
 if ($vclibsAka -and (Test-Path $vclibsAka)) { $extraDeps += $vclibsAka }
 if ($uiXamlPath -and (Test-Path $uiXamlPath)) { $extraDeps += $uiXamlPath }
 
-Write-Step 'Dependencies installieren (Reihenfolge: VCLibs -> UI.Xaml -> WinAppRuntime)'
+Write-Step 'Install dependencies (order: VCLibs -> UI.Xaml -> WinAppRuntime)'
 foreach ($extra in $extraDeps) {
     Install-AppxSafe -Path $extra
 }
@@ -470,16 +470,16 @@ $allDepPaths = @($extraDeps) + @($depFiles | ForEach-Object { $_.FullName })
 # DesktopAppInstaller + License
 # ---------------------------------------------------------------------------
 
-Write-Step 'winget (Microsoft.DesktopAppInstaller) installieren'
+Write-Step 'Install winget (Microsoft.DesktopAppInstaller)'
 Install-AppxSafe -Path $bundlePath -DependencyPath $allDepPaths
 
 if (-not $NoProvision) {
-    Write-Step 'Fuer alle Benutzer provisionieren (License1.xml)'
+    Write-Step 'Provision for all users (License1.xml)'
     Provision-AppxSafe -PackagePath $bundlePath -LicensePath $licensePath -DependencyPackagePath $allDepPaths
 }
 
 if ($sourcePath -and (Test-Path $sourcePath)) {
-    Write-Step 'winget Source registrieren'
+    Write-Step 'Register winget source'
     Install-AppxSafe -Path $sourcePath
 }
 
@@ -489,7 +489,7 @@ Refresh-Path
 # Verify
 # ---------------------------------------------------------------------------
 
-Write-Step 'Pruefen'
+Write-Step 'Verify'
 
 $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
 $wingetExe = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\winget.exe'
@@ -508,18 +508,18 @@ if (-not $wingetCmd) {
 
 if (-not $wingetCmd) {
     Write-Warning @'
-winget.exe ist noch nicht im PATH.
-Ohne VCLibs / UI.Xaml / WinAppRuntime schlaegt die Installation still fehl.
-Bitte:
-  1) PowerShell neu oeffnen
-  2) falls dann immer noch unbekannt: Reboot
-Pakete pruefen:
+winget.exe is not on PATH yet.
+Without VCLibs / UI.Xaml / WinAppRuntime the install fails silently.
+Please:
+  1) Open a new PowerShell window
+  2) If it is still unknown: reboot
+Check packages:
   Get-AppxPackage Microsoft.DesktopAppInstaller, Microsoft.VCLibs*, Microsoft.UI.Xaml*, Microsoft.WindowsAppRuntime*
 '@
     exit 1
 }
 
-Write-Ok "winget gefunden: $($wingetCmd.Source)"
+Write-Ok "winget found: $($wingetCmd.Source)"
 & $wingetCmd.Source --info
 
 try {
@@ -527,10 +527,10 @@ try {
 } catch { }
 
 Write-Host ''
-Write-Host 'Fertig. Neue PowerShell oeffnen, dann z.B.:' -ForegroundColor Green
+Write-Host 'Done. Open a new PowerShell, then e.g.:' -ForegroundColor Green
 Write-Host '    winget --version'
 Write-Host '    winget search Git.Git'
 Write-Host '    winget install --id Git.Git -e --accept-source-agreements --accept-package-agreements'
 Write-Host ''
-Write-Host 'Hinweis: msstore-Quelle braucht den Microsoft Store und ist auf IoT LTSC nutzlos.' -ForegroundColor DarkGray
-Write-Host '         Community-Quelle "winget" funktioniert ohne Store.' -ForegroundColor DarkGray
+Write-Host 'Note: the msstore source needs the Microsoft Store and is useless on IoT LTSC.' -ForegroundColor DarkGray
+Write-Host '      The community source "winget" works without the Store.' -ForegroundColor DarkGray

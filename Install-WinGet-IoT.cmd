@@ -1,9 +1,9 @@
 @echo off
 setlocal
-:: Windows 11 IoT — winget ohne Store. Startet das PowerShell-Script als Admin.
+:: Windows 11 IoT -- winget without Store. Relaunches this script as Administrator.
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-  echo Bitte als Administrator ausfuehren.
+  echo Please run as Administrator.
   powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
   exit /b
 )
