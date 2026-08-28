@@ -250,6 +250,33 @@ function Get-SortedDependencyFiles {
     $Files | Sort-Object { & $rank $_ }, Name
 }
 
+function Test-AppxAlreadyPresent {
+    param($ErrorRecord)
+
+    $text = ''
+    if ($ErrorRecord -is [System.Management.Automation.ErrorRecord]) {
+        $ex = $ErrorRecord.Exception
+        while ($null -ne $ex) {
+            $text += ' ' + $ex.Message
+            if ($ex.HResult) { $text += ' ' + ('{0:X8}' -f $ex.HResult) }
+            $ex = $ex.InnerException
+        }
+        $text += ' ' + $ErrorRecord.FullyQualifiedErrorId
+        if ($ErrorRecord.ErrorDetails) { $text += ' ' + $ErrorRecord.ErrorDetails.Message }
+    } else {
+        $text = [string]$ErrorRecord
+    }
+
+    # ERROR_PACKAGE_ALREADY_EXISTS (0x80073CFB), ERROR_INSTALL_PACKAGE_DOWNGRADE (0x80073D06).
+    # AppX localizes the message (en-US and de-DE are both common on IoT images).
+    $text -match (
+        '80073CFB|80073D06|' +
+        'already installed|package already exists|higher version of this package|' +
+        'reinstallation of the package was blocked|' +
+        'bereits installiert|Neuinstallation des Pakets wurde blockiert'
+    )
+}
+
 function Install-AppxSafe {
     param(
         [Parameter(Mandatory)][string]$Path,
@@ -270,8 +297,7 @@ function Install-AppxSafe {
         Add-AppxPackage @params
         Write-Ok "installed: $name"
     } catch {
-        $msg = $_.Exception.Message
-        if ($msg -match '0x80073D06|already installed|bereits installiert|0x80073CFB') {
+        if (Test-AppxAlreadyPresent $_) {
             Write-Host "    already present: $name" -ForegroundColor Yellow
         } else {
             throw
@@ -300,8 +326,7 @@ function Provision-AppxSafe {
         Add-AppxProvisionedPackage @params | Out-Null
         Write-Ok 'provisioned system-wide (all users)'
     } catch {
-        $msg = $_.Exception.Message
-        if ($msg -match '0x80073CFB|already|bereits') {
+        if (Test-AppxAlreadyPresent $_) {
             Write-Host '    Package was already provisioned.' -ForegroundColor Yellow
         } else {
             throw
