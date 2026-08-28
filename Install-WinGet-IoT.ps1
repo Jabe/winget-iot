@@ -11,8 +11,8 @@
     Windows App Runtime) plus Microsoft.UI.Xaml.2.8 (laut Microsoft-IoT-Doku)
     und provisioniert DesktopAppInstaller systemweit mit License1.xml.
 
-    Ohne VCLibs / WinAppRuntime / UI.Xaml schlägt die Installation oft still
-    fehl — winget.exe erscheint dann nicht unter WindowsApps.
+    Ohne VCLibs / WinAppRuntime / UI.Xaml schlaegt die Installation oft still
+    fehl -- winget.exe erscheint dann nicht unter WindowsApps.
 
 .PARAMETER OfflineDir
     Ordner mit bereits heruntergeladenen Dateien (air-gapped IoT).
@@ -30,7 +30,7 @@
     winget-Source-Paket (cdn.winget.microsoft.com/cache/source.msix) nicht installieren.
 
 .PARAMETER NoProvision
-    Nur für den aktuellen Benutzer installieren, nicht systemweit provisionieren.
+    Nur fuer den aktuellen Benutzer installieren, nicht systemweit provisionieren.
 
 .EXAMPLE
     # Als Administrator:
@@ -179,7 +179,7 @@ function Get-LatestReleaseAssets {
             DepsHashUrl   = ($release.assets | Where-Object { $_.name -eq 'DesktopAppInstaller_Dependencies.txt' } | Select-Object -First 1).browser_download_url
         }
     } catch {
-        Write-Warning "GitHub API nicht erreichbar ($($_.Exception.Message)) — Fallback auf latest/download Permalinks."
+        Write-Warning "GitHub API nicht erreichbar ($($_.Exception.Message)) -- Fallback auf latest/download Permalinks."
         $base = 'https://github.com/microsoft/winget-cli/releases/latest/download'
         return [pscustomobject]@{
             Tag        = 'latest'
@@ -386,7 +386,7 @@ if ($OfflineDir) {
         Test-FileHashIfPresent -File $depsZip -HashFile $depsHash
     }
 
-    # VCLibs Desktop-Framework extra (aka.ms) — laut Microsoft-IoT-Doku Pflicht.
+    # VCLibs Desktop-Framework extra (aka.ms) -- laut Microsoft-IoT-Doku Pflicht.
     $vclibsUri = switch ($arch) {
         'x64'   { 'https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx' }
         'arm64' { 'https://aka.ms/Microsoft.VCLibs.arm64.14.00.Desktop.appx' }
@@ -399,7 +399,7 @@ if ($OfflineDir) {
         try {
             Invoke-FileDownload -Uri $vclibsUri -OutFile $vclibsAka
         } catch {
-            Write-Warning "aka.ms VCLibs nicht geladen — Dependencies.zip muss ausreichen."
+            Write-Warning "aka.ms VCLibs nicht geladen -- Dependencies.zip muss ausreichen."
             $vclibsAka = $null
         }
     }
@@ -456,7 +456,7 @@ $extraDeps = @()
 if ($vclibsAka -and (Test-Path $vclibsAka)) { $extraDeps += $vclibsAka }
 if ($uiXamlPath -and (Test-Path $uiXamlPath)) { $extraDeps += $uiXamlPath }
 
-Write-Step 'Dependencies installieren (Reihenfolge: VCLibs → UI.Xaml → WinAppRuntime)'
+Write-Step 'Dependencies installieren (Reihenfolge: VCLibs -> UI.Xaml -> WinAppRuntime)'
 foreach ($extra in $extraDeps) {
     Install-AppxSafe -Path $extra
 }

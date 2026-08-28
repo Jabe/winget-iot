@@ -33,12 +33,12 @@ The `msstore` source is useless on IoT LTSC. The `winget` community source works
 
 ```powershell
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-$f = "$env:TEMP\Install-WinGet-IoT.ps1"
+$f = Join-Path $env:TEMP 'Install-WinGet-IoT.ps1'
 Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/Jabe/winget-iot/main/Install-WinGet-IoT.ps1' -OutFile $f -UseBasicParsing
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File $f
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$f"
 ```
 
-`-UseBasicParsing` is required on Windows PowerShell 5.1 (no IE engine). The download is written to a file and started with `-File` so `#Requires` and `-OfflineDir` / other parameters work. Append parameters after `$f`, e.g. `-File $f -SkipUiXaml`.
+Paste only the block above. Extra parameters go on the last line, after `-File $f` (for example `-SkipUiXaml`).
 
 After success, open a **new** PowerShell:
 
