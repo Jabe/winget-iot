@@ -1,12 +1,26 @@
-# Install WinGet on Windows 11 IoT (no Microsoft Store)
+# Install WinGet on Windows 11 IoT Enterprise / LTSC (no Store)
 
-Bootstrap **winget** on **Windows 11 IoT Enterprise / LTSC** — editions that
-ship **without** the Microsoft Store.
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![PowerShell 5.1+](https://img.shields.io/badge/PowerShell-5.1%2B-5391FE.svg)](#requirements)
+[![GitHub release](https://img.shields.io/github/v/release/Jabe/winget-iot)](https://github.com/Jabe/winget-iot/releases)
 
-The official IoT docs still talk about VCLibs + UI.Xaml 2.8 only. Current
-WinGet (1.29+) also needs **Windows App Runtime 1.8**. Missing a dependency
-makes `Add-AppxPackage` fail **silently**: `winget.exe` never shows up under
-`%LOCALAPPDATA%\Microsoft\WindowsApps`.
+Bootstrap **winget** on **Windows 11 IoT Enterprise LTSC 2024 / 24H2** (also
+Windows 10 IoT LTSC 2021+ and Server without Store). These editions ship
+**without** the Microsoft Store, so App Installer is missing.
+
+The [official IoT docs](https://learn.microsoft.com/windows/iot/iot-enterprise/deployment/install-winget-windows-iot)
+still describe VCLibs + UI.Xaml 2.8 only (tested on LTSC 2021, WinGet 1.4).
+Current WinGet (**1.29+**) also needs **Windows App Runtime 1.8**. A missing
+dependency makes `Add-AppxPackage` fail **silently**: `winget.exe` never
+appears under `%LOCALAPPDATA%\Microsoft\WindowsApps`
+(`HRESULT 0x80073CF3`).
+
+General installers such as
+[asheroto/winget-install](https://github.com/asheroto/winget-install)
+target desktop Windows and Server. This script is the IoT/LTSC path:
+sideloading with the Store still off, dependency order, **all-users
+provision** with `License1.xml`, the community source (no `msstore`), and
+**offline / air-gapped** payloads.
 
 This script:
 
